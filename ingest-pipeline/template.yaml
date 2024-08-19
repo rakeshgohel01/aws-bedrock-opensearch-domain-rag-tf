@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM template for OpenSearch and Bedrock integration Lambda
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: S3 bucket name for uploading JSON files
+    Default: raglambda32455
+  IndexName:
+    Type: String
+    Description: The name of the OpenSearch index to use
+    Default: rag
+
+Resources:
+  RagS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+  BedrockOpenSearchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      CodeUri: src/
+      MemorySize: 1024
+      Timeout: 900
+      Environment:
+        Variables:
+          INDEX_NAME: !Ref IndexName
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${BucketName}"
+                - !Sub "arn:aws:s3:::${BucketName}/*"
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "arn:aws:bedrock:*:*:foundation-model/*"
+            - Effect: Allow
+              Action:
+                - es:ESHttpPost
+                - es:ESHttpPut
+                - es:ESHttpGet
+                - es:ESHttpDelete
+                - es:ESHttpHead
+                - es:ESHttpPatch
+                - es:ESHttpBulk
+                - es:CreateElasticsearchDomain
+                - es:DeleteElasticsearchDomain
+                - es:UpdateElasticsearchDomainConfig
+                - es:CreateIndex
+                - es:DeleteIndex
+                - es:UpdateIndex
+              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${IndexName}/*"
+            - Effect: Allow
+              Action:
+                - es:DescribeElasticsearchDomain
+                - es:DescribeDomain
+              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${IndexName}"
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:ListSecrets
+              Resource: "*"
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket: !Ref RagS3Bucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .json
+
+Outputs:
+  BedrockOpenSearchFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt BedrockOpenSearchFunction.Arn
+  RagS3Bucket:
+    Description: "S3 Bucket Name"
+    Value: !Ref RagS3Bucket
