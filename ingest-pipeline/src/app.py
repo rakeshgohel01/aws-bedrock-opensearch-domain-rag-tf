@@ -32,20 +32,26 @@ def lambda_handler(event, context):
     s3_client = boto3.client('s3')
     region = os.getenv("AWS_REGION", "us-east-1")
     name = os.getenv("INDEX_NAME", "rag")
-    username = os.getenv("USERNAME", "osmaster")
+    domain_name = os.getenv("OPENSEARCH_DOMAIN_NAME", "osrag")
 
-    # Get the object from the event
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = event['Records'][0]['s3']['object']['key']
 
-    # Download the file from S3
     local_file_path = '/tmp/data1.json'
     s3_client.download_file(bucket, key, local_file_path)
 
-    # Prepare OpenSearch index with vector embeddings index mapping
     logger.info("Preparing OpenSearch Index")
-    opensearch_password = secret.get_secret(name, region)
-    opensearch_client = opensearch.get_opensearch_cluster_client(name, opensearch_password, region, username)
+    opensearch_password = secret.get_secret(domain_name, region)
+    try:
+        opensearch_password_dict = json.loads(opensearch_password)
+
+        username = opensearch_password_dict.get("username", "master")
+        password = opensearch_password_dict.get("password")
+    except json.JSONDecodeError:
+        username = "master"
+        password = opensearch_password
+
+    opensearch_client = opensearch.get_opensearch_cluster_client(domain_name, name, password, region, username)
 
     logger.info(f"Checking if index {name} exists in OpenSearch cluster")
     exists = opensearch.check_opensearch_index(opensearch_client, name)

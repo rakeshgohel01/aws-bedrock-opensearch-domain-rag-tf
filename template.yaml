@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template for OpenSearch domain with advanced security and encryption settings.
+
+Parameters:
+  Region:
+    Type: String
+    Default: us-east-1
+    Description: The region you want to deploy the solution.
+
+  Name:
+    Type: String
+    Default: osrag
+    Description: The name for the resource.
+
+  OpenSearchDataInstanceType:
+    Type: String
+    Default: m5.large.search
+    Description: OpenSearch data instance type.
+
+  OpenSearchDataInstanceCount:
+    Type: Number
+    Default: 1
+    Description: OpenSearch data instance count.
+
+  OpenSearchNodeToNodeEncryption:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch node-to-node encryption.
+
+  OpenSearchEncryptAtRest:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch encryption at rest.
+
+  OpenSearchDomainEndpointOptionsEnforceHTTPS:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch domain enforce HTTPS.
+
+  OpenSearchClusterConfigDedicatedMasterEnabled:
+    Type: String
+    Default: false
+    AllowedValues: [true, false]
+    Description: OpenSearch dedicated master enabled.
+
+  OpenSearchClusterConfigWarmEnabled:
+    Type: String
+    Default: false
+    AllowedValues: [true, false]
+    Description: OpenSearch warm enabled.
+
+  OpenSearchEBSOptionsEBSEnabled:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch EBS enabled.
+
+  OpenSearchEBSOptionsVolumeSize:
+    Type: Number
+    Default: 30
+    Description: OpenSearch EBS volume size.
+
+  OpenSearchEBSOptionsVolumeType:
+    Type: String
+    Default: gp3
+    Description: OpenSearch EBS volume type.
+
+  OpenSearchAdvancedSecurityOptionsEnabled:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch advanced security options enabled.
+
+  OpenSearchAdvancedSecurityOptionsInternalUserEnabled:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+    Description: OpenSearch advanced security internal user database enabled.
+
+Resources:
+  Secret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: !Sub "${Name}-password"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "master"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Ref Name
+
+  OpenSearchDomain:
+    Type: 'AWS::OpenSearchService::Domain'
+    Properties:
+      DomainName: !Ref Name
+      EngineVersion: 'OpenSearch_2.13'
+      NodeToNodeEncryptionOptions:
+        Enabled: !Ref OpenSearchNodeToNodeEncryption
+      EncryptionAtRestOptions:
+        Enabled: !Ref OpenSearchEncryptAtRest
+      DomainEndpointOptions:
+        EnforceHTTPS: !Ref OpenSearchDomainEndpointOptionsEnforceHTTPS
+        TLSSecurityPolicy: 'Policy-Min-TLS-1-2-2019-07'
+      ClusterConfig:
+        InstanceType: !Ref OpenSearchDataInstanceType
+        InstanceCount: !Ref OpenSearchDataInstanceCount
+        DedicatedMasterEnabled: !Ref OpenSearchClusterConfigDedicatedMasterEnabled
+        WarmEnabled: !Ref OpenSearchClusterConfigWarmEnabled
+      EBSOptions:
+        EBSEnabled: !Ref OpenSearchEBSOptionsEBSEnabled
+        VolumeSize: !Ref OpenSearchEBSOptionsVolumeSize
+        VolumeType: !Ref OpenSearchEBSOptionsVolumeType
+      AdvancedSecurityOptions:
+        Enabled: !Ref OpenSearchAdvancedSecurityOptionsEnabled
+        InternalUserDatabaseEnabled: !Ref OpenSearchAdvancedSecurityOptionsInternalUserEnabled
+        MasterUserOptions:
+          MasterUserName: "master"
+          MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref Secret, ':SecretString:password}}']]
+
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "es:*"
+            Resource: !Sub "arn:aws:es:${Region}:${AWS::AccountId}:domain/${Name}/*"
+
+Outputs:
+  OpenSearchURL:
+    Description: URL of the OpenSearch domain.
+    Value: !GetAtt OpenSearchDomain.DomainEndpoint

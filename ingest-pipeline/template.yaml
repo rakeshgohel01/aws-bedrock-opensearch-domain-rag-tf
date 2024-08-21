@@ -6,11 +6,11 @@ Parameters:
   BucketName:
     Type: String
     Description: S3 bucket name for uploading JSON files
-    Default: raglambda32455
-  IndexName:
+    Default: raglambda
+  DomainName:
     Type: String
     Description: The name of the OpenSearch index to use
-    Default: rag
+    Default: osrag
 
 Resources:
   RagS3Bucket:
@@ -28,7 +28,8 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          INDEX_NAME: !Ref IndexName
+          OPENSEARCH_DOMAIN_NAME: !Ref DomainName
+          INDEX_NAME: "rag"
       Policies:
         - Version: "2012-10-17"
           Statement:
@@ -58,12 +59,12 @@ Resources:
                 - es:CreateIndex
                 - es:DeleteIndex
                 - es:UpdateIndex
-              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${IndexName}/*"
+              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*"
             - Effect: Allow
               Action:
                 - es:DescribeElasticsearchDomain
                 - es:DescribeDomain
-              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${IndexName}"
+              Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}"
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue

@@ -9,7 +9,7 @@ variable "name" {
 }
 
 variable "opensearch_data_instance_type" {
-  default     = "t3.medium.search"
+  default     = "m5.large.search"
   description = "OpenSearch data instance type"
 }
 

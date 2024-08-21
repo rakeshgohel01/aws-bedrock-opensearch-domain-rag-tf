@@ -10,6 +10,7 @@ from langchain_community.chat_models import BedrockChat
 from loguru import logger
 import sys
 import os
+import json
 
 # logger
 logger.remove()
@@ -26,6 +27,7 @@ def create_langchain_vector_embedding_using_bedrock(bedrock_client, bedrock_embe
     return bedrock_embeddings_client
 
 def create_opensearch_vector_search_client(index_name, username, opensearch_password, bedrock_embeddings_client, opensearch_endpoint, _is_aoss=False):
+    logger.info(f"Creating OpenSearch Vector Search Client for index: {index_name}")
     docsearch = OpenSearchVectorSearch(
         index_name=index_name,
         embedding_function=bedrock_embeddings_client,
@@ -43,13 +45,21 @@ def create_bedrock_llm(bedrock_client, model_version_id):
         )
     return bedrock_llm
 
-def initialize_retrieval_chain(index_name, region, bedrock_model_id, bedrock_embedding_model_id, username):
+def initialize_retrieval_chain(domain_name, index_name, region, bedrock_model_id, bedrock_embedding_model_id, username):
     bedrock_client = get_bedrock_client(region)
     bedrock_llm = create_bedrock_llm(bedrock_client, bedrock_model_id)
     bedrock_embeddings_client = create_langchain_vector_embedding_using_bedrock(bedrock_client, bedrock_embedding_model_id)
-    opensearch_endpoint = opensearch.get_opensearch_endpoint(index_name, region)
-    opensearch_password = secret.get_secret(index_name, region)
-    opensearch_vector_search_client = create_opensearch_vector_search_client(index_name, username, opensearch_password, bedrock_embeddings_client, opensearch_endpoint)
+    opensearch_endpoint = opensearch.get_opensearch_endpoint(domain_name, region)
+    opensearch_password = secret.get_secret(domain_name, region)
+    try:
+        opensearch_password_dict = json.loads(opensearch_password)
+        username = opensearch_password_dict.get("username", "master")
+        password = opensearch_password_dict.get("password")
+    except json.JSONDecodeError:
+        username = "master"  # Assuming "master" is the default username
+        password = opensearch_password
+
+    opensearch_vector_search_client = create_opensearch_vector_search_client(index_name, username, password, bedrock_embeddings_client, opensearch_endpoint)
 
     prompt = ChatPromptTemplate.from_template("""If the context is not relevant, please answer the question by using your own knowledge about the topic. If you don't know the answer, just say that you don't know, don't try to make up an answer. don't include harmful content
 
@@ -75,13 +85,14 @@ def main():
 
         # Parameters
         region = 'us-east-1'
+        domain_name = 'osrag'
         index_name = 'rag'
         bedrock_model_id = 'anthropic.claude-3-sonnet-20240229-v1:0'
         bedrock_embedding_model_id = 'amazon.titan-embed-text-v1'
         username = 'osmaster'
 
         # Initialize retrieval chain
-        retrieval_chain = initialize_retrieval_chain(index_name, region, bedrock_model_id, bedrock_embedding_model_id, username)
+        retrieval_chain = initialize_retrieval_chain(domain_name, index_name, region, bedrock_model_id, bedrock_embedding_model_id, username)
 
         # Get response
         response = retrieval_chain.invoke({"input": question})

@@ -10,15 +10,15 @@ logger.remove()
 logger.add(sys.stdout, level=os.getenv("LOG_LEVEL", "INFO"))
 
 
-def get_opensearch_cluster_client(name, password, region, username):
-    opensearch_endpoint = get_opensearch_endpoint(name, region)
+def get_opensearch_cluster_client(domain_name, index_name,password, region, username):
+    opensearch_endpoint = get_opensearch_endpoint(domain_name, region)
     opensearch_client = OpenSearch(
         hosts=[{
             'host': opensearch_endpoint,
             'port': 443
             }],
         http_auth=(username, password),
-        index_name = name,
+        index_name = index_name,
         use_ssl=True,
         verify_certs=True,
         connection_class=RequestsHttpConnection,
